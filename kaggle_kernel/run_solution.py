@@ -21,6 +21,9 @@ REPO_URL = "https://github.com/zlyx2377/filament-segmentation-2026.git"
 # (git clone, training artifacts, submission) must go under /kaggle/working.
 WORK = "/kaggle/working"
 REPO_DIR = os.path.join(WORK, "filament-segmentation-2026")
+# Kaggle runs this file as /kaggle/src/script.py, so sys.path[0] is /kaggle/src
+# (NOT our cwd). Make the cloned repo importable regardless of cwd.
+sys.path.insert(0, REPO_DIR)
 CONFIG = "configs/kaggle.yaml"          # fast validation config (30 epochs)
 
 
