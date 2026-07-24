@@ -1,0 +1,5 @@
+_base_: base.yaml
+model:
+  encoder: swin_base_patch4_window12_384
+experiment:
+  name: filament_swin_b

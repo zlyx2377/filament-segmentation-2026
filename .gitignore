@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# Secrets / credentials — NEVER commit
+.kaggle/
+kaggle.json
+*.env
+.env.*
+
+# Large model artifacts & outputs (generated, not source)
+weights/
+*.pt
+*.pth
+*.onnx
+*.ckpt
+outputs/
+submissions/
+*.csv
+
+# OS / editor
+.DS_Store
+.ipynb_checkpoints/
+.vscode/
+.idea/

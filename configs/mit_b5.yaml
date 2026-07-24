@@ -1,0 +1,5 @@
+_base_: base.yaml
+model:
+  encoder: mit_b5
+experiment:
+  name: filament_mit_b5

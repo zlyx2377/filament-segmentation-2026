@@ -1,0 +1,90 @@
+# =====================================================================
+# Filament Segmentation 2026 — base configuration
+# All paths are RELATIVE to the Kaggle input mount or this repo root.
+# Override per-model in configs/<model>.yaml (see convnext_b.yaml).
+# =====================================================================
+
+data:
+  # On Kaggle: /kaggle/input/filament-segmentation-2026/MAGFiLO_1.0_Kaggle_2026
+  root: "/kaggle/input/filament-segmentation-2026/MAGFiLO_1.0_Kaggle_2026"
+  train_images_dir: "train/train_images"
+  train_ann_file: "train/MAGFiLO_1.0_Annotations_kaggle2026_train.json"
+  test_images_dir: "test/test_images"
+  image_size: 2048          # fixed by competition
+  num_classes: 1            # filament (binary)
+  use_spine_aux: true       # auxiliary spine head (uses provided spine annotations)
+  # Train on random crops (full 2048 is too large for most GPUs).
+  crop_size: 768
+  crop_sizes: [512, 768]    # randomly pick per sample for scale robustness
+  # GroupKFold key: strip annotator prefix so the SAME physical image
+  # (annotated by multiple annotators) never spans train & val.
+  group_by: "image_base"    # image_base = filename without extension / annotator id
+  n_folds: 5
+  holdout_fold: 0
+
+model:
+  # segmentation_models_pytorch encoder + U-Net decoder
+  arch: "unet"
+  encoder: "convnext_base"   # convnext_base | swin_base_patch4_window12_384 | mit_b5
+  encoder_weights: "imagenet"
+  decoder_channels: [256, 128, 64, 32, 16]
+  num_classes: 1
+  aux_classes: 1             # spine (only used when use_spine_aux=true)
+  pretrained: true
+
+training:
+  epochs: 60
+  batch_size: 8              # per GPU, for 768 crops on T4; lower to 4 for 1024
+  accumulate_grad_batches: 2
+  lr: 2.0e-4
+  weight_decay: 1.0e-4
+  scheduler: "cosine"        # cosine | plateau
+  warmup_epochs: 2
+  amp: true                  # mixed precision
+  ema: true                  # exponential moving average of weights
+  ema_decay: 0.9998
+  grad_clip: 5.0
+  seed: 2026
+  # Loss weights (filament head)
+  loss:
+    dice: 1.0
+    focal: 0.5
+    tversky: 0.5             # beta tuned for high recall on small filaments
+    tversky_beta: 0.7        # higher beta -> higher recall
+    lovasz: 0.5
+  # Spine auxiliary loss weight (applied only if use_spine_aux)
+  spine_loss_weight: 0.3
+
+inference:
+  tile_size: 1024            # sliding-window tile; smaller = more overlap, slower
+  tile_overlap: 0.25         # fraction overlap between tiles
+  threshold: 0.5             # probability threshold for filament
+  spine_threshold: 0.5
+  tta:
+    enable: true
+    flips: ["none", "h", "v", "hv"]
+    rot90: true              # 0/90/180/270
+  # Instance separation
+  instance:
+    method: "watershed"      # watershed | distance | spine_seed
+    use_spine_seed: true     # seed watershed with predicted spine points
+    min_distance: 12         # min px between local maxima (for distance method)
+    watershed_smooth_sigma: 1.0
+  # Post-filtering (tunes the one-to-many / many-to-one penalties)
+  postprocess:
+    min_area: 80             # remove fragments smaller than this (px^2) -> cuts one-to-many
+    max_area: 900000         # sanity cap (whole disk ~ 3.1M px)
+    morphological_smooth: 1  # opening/closing iterations for edge cleanup
+    merge_same_label: false  # DO NOT blind-merge (would cause many-to-one)
+    # Do NOT aggressively close (avoid merging touching filaments).
+
+submission:
+  out_csv: "submission.csv"
+  rle_fmt: "pycocotools"     # counts only, no size, no quotes
+
+experiment:
+  name: "filament_convnext_b"
+  out_dir: "/kaggle/working/exp"
+  # Pseudo-labeling on test set (advanced). Disabled until a strong model exists.
+  pseudo_label: false
+  pseudo_threshold: 0.95
