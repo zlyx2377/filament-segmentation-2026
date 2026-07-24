@@ -16,9 +16,14 @@ data:
   # Train on random crops (full 2048 is too large for most GPUs).
   crop_size: 768
   crop_sizes: [512, 768]    # randomly pick per sample for scale robustness
-  # GroupKFold key: strip annotator prefix so the SAME physical image
-  # (annotated by multiple annotators) never spans train & val.
-  group_by: "image_base"    # image_base = filename without extension / annotator id
+  # The released COCO json lists each physical image under MULTIPLE annotation
+  # passes (different `image_id` prefixes), each with its own annotations.
+  # We group by physical file; `annotation_merge` controls how passes combine:
+  #   union  -> collapse all passes into one high-recall foreground target (default)
+  #   first  -> use only the first annotation pass (lower-variance baseline)
+  annotation_merge: "union"
+  # GroupKFold groups by physical file_name so all passes of one image stay
+  # in the same fold (no leakage).
   n_folds: 5
   holdout_fold: 0
 
