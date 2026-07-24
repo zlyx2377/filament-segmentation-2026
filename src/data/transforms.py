@@ -16,7 +16,7 @@ def get_augmentations() -> A.Compose:
             A.VerticalFlip(p=0.5),
             A.RandomRotate90(p=0.5),
             A.RandomBrightnessContrast(brightness_limit=0.15, contrast_limit=0.15, p=0.3),
-            A.GaussNoise(var_limit=(5.0, 25.0), p=0.2),
+            A.GaussNoise(p=0.2),
             A.ElasticTransform(alpha=50, sigma=5, p=0.2),
         ],
         additional_targets={"spine": "mask"},

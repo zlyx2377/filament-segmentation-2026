@@ -14,8 +14,8 @@ data:
   num_classes: 1            # filament (binary)
   use_spine_aux: true       # auxiliary spine head (uses provided spine annotations)
   # Train on random crops (full 2048 is too large for most GPUs).
-  crop_size: 768
-  crop_sizes: [512, 768]    # randomly pick per sample for scale robustness
+  crop_size: 512
+  crop_sizes: [384, 512]    # randomly pick per sample for scale robustness
   # The released COCO json lists each physical image under MULTIPLE annotation
   # passes (different `image_id` prefixes), each with its own annotations.
   # We group by physical file; `annotation_merge` controls how passes combine:
@@ -30,7 +30,9 @@ data:
 model:
   # segmentation_models_pytorch encoder + U-Net decoder
   arch: "unet"
-  encoder: "convnext_base"   # convnext_base | swin_base_patch4_window12_384 | mit_b5
+  # mit_b5 (SegFormer-B5) is well-supported by current smp and strong for
+  # filament segmentation. convnext_base needs smp>=0.4 (upgrade + deps).
+  encoder: "mit_b5"          # mit_b5 | efficientnet-b5 | mit_b4
   encoder_weights: "imagenet"
   decoder_channels: [256, 128, 64, 32, 16]
   num_classes: 1
@@ -39,7 +41,7 @@ model:
 
 training:
   epochs: 60
-  batch_size: 8              # per GPU, for 768 crops on T4; lower to 4 for 1024
+  batch_size: 4              # per GPU, for 512 crops on T4; raise for bigger crops
   accumulate_grad_batches: 2
   lr: 2.0e-4
   weight_decay: 1.0e-4
@@ -88,7 +90,7 @@ submission:
   rle_fmt: "pycocotools"     # counts only, no size, no quotes
 
 experiment:
-  name: "filament_convnext_b"
+  name: "filament_mit_b5"
   out_dir: "/kaggle/working/exp"
   # Pseudo-labeling on test set (advanced). Disabled until a strong model exists.
   pseudo_label: false

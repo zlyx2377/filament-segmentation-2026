@@ -8,7 +8,10 @@ _base_: base.yaml
 
 training:
   epochs: 30            # quick validation run; bump to 60+ for the real attempt
-  batch_size: 8
+  batch_size: 4         # mit_b5 @ 512 crops on T4 (x2) is GPU-safe
+
+model:
+  encoder: "mit_b5"
 
 experiment:
-  name: "filament_convnext_b_kaggle"
+  name: "filament_mit_b5_kaggle"
