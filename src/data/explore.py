@@ -49,18 +49,19 @@ def find_coco_json(mount_root: str) -> Optional[str]:
     return best[0] if best else None
 
 
+def _count_images(dp: str) -> int:
+    if not os.path.isdir(dp):
+        return 0
+    return sum(1 for f in os.listdir(dp) if f.lower().endswith(IMG_EXTS))
+
+
 def find_image_dir(mount_root: str, near: Optional[str] = None) -> Optional[str]:
     """Return the directory holding the most image files (optionally under `near`)."""
     best = None
-
-    def _score(dp):
-        return sum(1 for f in os.listdir(dp)
-                   if f.lower().endswith(IMG_EXTS)) if os.path.isdir(dp) else 0
-
     for dp, _, _ in os.walk(mount_root):
         if near and not (dp == near or dp.startswith(near + os.sep)):
             continue
-        s = _score(dp)
+        s = _count_images(dp)
         if s > 0 and (best is None or s > best[1]):
             best = (dp, s)
     return best[0] if best else None
@@ -97,20 +98,36 @@ def resolve_train_paths(cfg: dict, mount_root: str) -> dict:
 
 
 def resolve_test_paths(cfg: dict, mount_root: str) -> dict:
-    """Like :func:`resolve_train_paths` but for the (annotation-less) test set."""
+    """Like :func:`resolve_train_paths` but for the (annotation-less) test set.
+
+    Prefers a directory whose path contains "test" (so we don't accidentally
+    point the submission at the training images).
+    """
     data = dict(cfg["data"])
     root = data["root"]
     img_rel = data["test_images_dir"]
     configured = os.path.join(root, img_rel)
     if os.path.isdir(configured):
         return data
-    imgdir = find_image_dir(mount_root)
-    if imgdir:
-        # test images typically live under a different subdir than train;
-        # anchor root at the mount and point test_images_dir at the found dir.
+
+    # Prefer a directory whose *path segment starts with* "test" (e.g.
+    # .../test_images). Using startswith (not substring) avoids false matches
+    # like a parent dir ".../edatest/...". Falls back to the largest image dir.
+    test_dir = None
+    best = -1
+    for dp, _, _ in os.walk(mount_root):
+        segs = [s.lower() for s in dp.split(os.sep)]
+        if any(s.startswith("test") for s in segs):
+            c = _count_images(dp)
+            if c > best:
+                best = c
+                test_dir = dp
+    if test_dir is None:
+        test_dir = find_image_dir(mount_root)
+    if test_dir:
         data["root"] = mount_root
-        data["test_images_dir"] = os.path.relpath(imgdir, mount_root)
-        print(f"[resolve] test images auto-detected: dir={imgdir}")
+        data["test_images_dir"] = os.path.relpath(test_dir, mount_root)
+        print(f"[resolve] test images auto-detected: dir={test_dir}")
     return data
 
 
