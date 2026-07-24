@@ -61,6 +61,11 @@ def train_fold(cfg: dict, fold: int, logger):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Training fold {fold} on {device}")
 
+    # Auto-correct guessed data paths against the real Kaggle mount if needed.
+    from src.data.explore import resolve_train_paths
+    mount = "/kaggle/input/filament-segmentation-2026"
+    cfg["data"] = resolve_train_paths(cfg, mount)
+
     root = cfg["data"]["root"]
     ann = cfg["data"]["train_ann_file"]
     img_dir = cfg["data"]["train_images_dir"]

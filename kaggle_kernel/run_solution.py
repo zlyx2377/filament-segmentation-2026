@@ -62,6 +62,11 @@ def main():
     run([sys.executable, "-m", "pip", "install", "-q", "-r",
          "requirements_kaggle.txt"], check=False)
 
+    # 2b) Dump the REAL data layout to the kernel log (so we can adapt if our
+    #     guessed paths in base.yaml are wrong). Harmless once data is ready.
+    from src.data.explore import print_structure
+    print_structure("/kaggle/input/filament-segmentation-2026")
+
     # 3) End-to-end train + infer (writes submission.csv in repo root).
     from notebooks.kaggle_run import main as kaggle_run_main
     kaggle_run_main(CONFIG, do_train=True, do_infer=True)
