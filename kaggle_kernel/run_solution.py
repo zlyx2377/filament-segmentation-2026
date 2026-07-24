@@ -65,10 +65,41 @@ def main():
     run([sys.executable, "-m", "pip", "install", "-q", "-r",
          "requirements_kaggle.txt"], check=False)
 
-    # 2b) Dump the REAL data layout to the kernel log (so we can adapt if our
-    #     guessed paths in base.yaml are wrong). Harmless once data is ready.
-    from src.data.explore import print_structure
-    print_structure("/kaggle/input/filament-segmentation-2026")
+    # 2b) Diagnostics: what is actually mounted + is GPU available?
+    import torch
+    print("=== environment diagnostics ===")
+    print("torch:", torch.__version__,
+          "| cuda available:", torch.cuda.is_available(),
+          "| cuda", getattr(torch.version, "cuda", None))
+    print("--- /kaggle/input tree (depth<=2) ---")
+    if os.path.isdir("/kaggle/input"):
+        for dp, dirs, _ in os.walk("/kaggle/input"):
+            if dp[len("/kaggle/input"):].count(os.sep) <= 2:
+                print(f"  {dp}  (dirs: {dirs[:8]})")
+    else:
+        print("  /kaggle/input DOES NOT EXIST")
+
+    # 2c) Dump the REAL data layout + auto-discover the COCO json under the
+    #     actual mount (we no longer hardcode the competition slug).
+    from src.data.explore import print_structure, find_coco_json
+    coco = find_coco_json("/kaggle/input")
+    print("discovered COCO json:", coco)
+    if coco is None:
+        print("FATAL: competition data not found under /kaggle/input; aborting.")
+        return
+    print_structure(os.path.dirname(coco))
+
+    if not torch.cuda.is_available():
+        cuda_build = getattr(torch.version, "cuda", None)
+        print("WARN: CUDA not available.")
+        if cuda_build is None:
+            print("  -> torch was installed as a CPU-only build; fix "
+                  "requirements_kaggle.txt (avoid reinstalling torch).")
+        else:
+            print("  -> a GPU was NOT allocated (accelerator disabled or weekly "
+                  "GPU quota exhausted). Enable GPU / wait for quota reset.")
+        print("Aborting early to avoid a wasted CPU run.")
+        return
 
     # 3) End-to-end train + infer (writes submission.csv in repo root).
     from notebooks.kaggle_run import main as kaggle_run_main

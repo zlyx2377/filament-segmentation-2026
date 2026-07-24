@@ -15,7 +15,7 @@ def main(cfg_path: str = "configs/base.yaml"):
     from src.data.explore import resolve_test_paths
     cfg = load_config(cfg_path)
     # Auto-correct the test image path against the real mount if needed.
-    mount = "/kaggle/input/filament-segmentation-2026"
+    mount = "/kaggle/input"
     cfg["data"] = resolve_test_paths(cfg, mount)
     predictor = make_predictor(cfg)
     out_csv = cfg["submission"]["out_csv"]

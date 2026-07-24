@@ -63,7 +63,7 @@ def train_fold(cfg: dict, fold: int, logger):
 
     # Auto-correct guessed data paths against the real Kaggle mount if needed.
     from src.data.explore import resolve_train_paths
-    mount = "/kaggle/input/filament-segmentation-2026"
+    mount = "/kaggle/input"
     cfg["data"] = resolve_train_paths(cfg, mount)
 
     root = cfg["data"]["root"]
