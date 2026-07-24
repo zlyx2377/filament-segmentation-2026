@@ -62,8 +62,18 @@ def main():
     os.chdir(REPO_DIR)
 
     # 2) Install only what Kaggle's base image lacks.
-    run([sys.executable, "-m", "pip", "install", "-q", "-r",
-         "requirements_kaggle.txt"], check=False)
+    # IMPORTANT: Kaggle's GPU image already ships a CUDA torch. Installing
+    # segmentation-models-pytorch / timm WITHOUT --no-deps makes pip upgrade
+    # torch to a CPU-only build (we hit 2.10.0+cpu and lost CUDA entirely).
+    # So we install the torch-pulling packages with --no-deps to KEEP the
+    # CUDA torch, and install their lightweight deps separately.
+    run([sys.executable, "-m", "pip", "install", "-q",
+         "albumentations>=1.3", "scikit-image>=0.21", "scipy>=1.10",
+         "opencv-python-headless>=4.7", "pyyaml>=6.0"], check=False)
+    run([sys.executable, "-m", "pip", "install", "-q", "--no-deps",
+         "segmentation-models-pytorch>=0.3.3", "timm>=0.9"], check=False)
+    run([sys.executable, "-m", "pip", "install", "-q",
+         "einops", "pretrainedmodels", "huggingface-hub"], check=False)
 
     # 2b) Diagnostics: what is actually mounted + is GPU available?
     import torch
