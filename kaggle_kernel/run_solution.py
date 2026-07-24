@@ -36,7 +36,7 @@ def sanity_ok(path: str) -> bool:
     except Exception as e:  # noqa
         print("sanity: cannot read csv ->", e)
         return False
-    if list(df.columns) != ["id", "segmentation"]:
+    if list(df.columns) != ["filament_id", "segmentation_rle"]:
         print("sanity: unexpected columns ->", list(df.columns))
         return False
     if len(df) == 0:
