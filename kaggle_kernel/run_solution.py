@@ -61,21 +61,54 @@ def main():
         run(["git", "clone", "--depth", "1", REPO_URL], check=True)
     os.chdir(REPO_DIR)
 
-    # 2) Install only what Kaggle's base image lacks.
-    # IMPORTANT: Kaggle's GPU image already ships a CUDA torch. Installing
-    # segmentation-models-pytorch / timm WITHOUT --no-deps makes pip upgrade
-    # torch to a CPU-only build (we hit 2.10.0+cpu and lost CUDA entirely).
-    # So we install the torch-pulling packages with --no-deps to KEEP the
-    # CUDA torch, and install their lightweight deps separately.
+    # 2) Install only what Kaggle's base image lacks, NEVER replacing torch.
+    # Every torch-pulling package is installed with --no-deps so pip cannot
+    # swap Kaggle's CUDA torch for a CPU-only build.
+    import subprocess as _sp
+
+    def _torch_info():
+        r = _sp.run([sys.executable, "-c",
+                     "import torch;print(torch.__version__,torch.cuda.is_available(),getattr(torch.version,'cuda',None))"],
+                    capture_output=True, text=True)
+        return (r.stdout or r.stderr).strip()
+
+    print("=== env BEFORE pip install ===")
+    print("torch:", _torch_info())
+
     run([sys.executable, "-m", "pip", "install", "-q",
          "albumentations>=1.3", "scikit-image>=0.21", "scipy>=1.10",
          "opencv-python-headless>=4.7", "pyyaml>=6.0"], check=False)
     run([sys.executable, "-m", "pip", "install", "-q", "--no-deps",
-         "segmentation-models-pytorch>=0.3.3", "timm>=0.9"], check=False)
+         "segmentation-models-pytorch>=0.3.3", "timm>=0.9",
+         "einops", "pretrainedmodels"], check=False)
     run([sys.executable, "-m", "pip", "install", "-q",
-         "einops", "pretrainedmodels", "huggingface-hub"], check=False)
+         "huggingface-hub"], check=False)
 
-    # 2b) Diagnostics: what is actually mounted + is GPU available?
+    print("=== env AFTER pip install ===")
+    print("torch:", _torch_info())
+
+    # 2b) Ensure a CUDA torch is present. If the base image only ships a CPU
+    # torch (or none), install one from the PyTorch CUDA index. This runs in a
+    # subprocess BEFORE this process imports torch, so the cached module is the
+    # correct (CUDA) build when training later does `import torch`.
+    _ensure = (
+        "import subprocess,sys\n"
+        "def ok():\n"
+        "    try:\n"
+        "        import torch\n"
+        "        return torch.cuda.is_available()\n"
+        "    except Exception:\n"
+        "        return False\n"
+        "if ok():\n"
+        "    print('CUDA torch already present; keeping it.')\n"
+        "else:\n"
+        "    print('No CUDA torch -> installing from pytorch cu121 index...')\n"
+        "    subprocess.run([sys.executable,'-m','pip','install','-q','torch','torchvision','--index-url','https://download.pytorch.org/whl/cu121'],check=False)\n"
+        "    print('post-install cuda available:', ok())\n"
+    )
+    run([sys.executable, "-c", _ensure], check=False)
+
+    # 2c) Diagnostics: what is actually mounted + is GPU available?
     import torch
     print("=== environment diagnostics ===")
     print("torch:", torch.__version__,
@@ -89,7 +122,7 @@ def main():
     else:
         print("  /kaggle/input DOES NOT EXIST")
 
-    # 2c) Dump the REAL data layout + auto-discover the COCO json under the
+    # 2d) Dump the REAL data layout + auto-discover the COCO json under the
     #     actual mount (we no longer hardcode the competition slug).
     from src.data.explore import print_structure, find_coco_json
     coco = find_coco_json("/kaggle/input")
@@ -100,14 +133,9 @@ def main():
     print_structure(os.path.dirname(coco))
 
     if not torch.cuda.is_available():
-        cuda_build = getattr(torch.version, "cuda", None)
-        print("WARN: CUDA not available.")
-        if cuda_build is None:
-            print("  -> torch was installed as a CPU-only build; fix "
-                  "requirements_kaggle.txt (avoid reinstalling torch).")
-        else:
-            print("  -> a GPU was NOT allocated (accelerator disabled or weekly "
-                  "GPU quota exhausted). Enable GPU / wait for quota reset.")
+        print("WARN: CUDA not available even after ensure step.")
+        print("  -> a GPU was NOT allocated (accelerator disabled or weekly "
+              "GPU quota exhausted). Enable GPU / wait for quota reset.")
         print("Aborting early to avoid a wasted CPU run.")
         return
 
