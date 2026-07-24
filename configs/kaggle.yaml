@@ -1,0 +1,14 @@
+# =====================================================================
+# Kaggle cloud-run config — inherits base.yaml, trimmed for a FIRST
+# end-to-end validation run (fewer epochs so we confirm the whole
+# train -> infer -> submit pipeline works on Kaggle GPU before we
+# spend a long training budget).
+# =====================================================================
+_base: base.yaml
+
+training:
+  epochs: 30            # quick validation run; bump to 60+ for the real attempt
+  batch_size: 8
+
+experiment:
+  name: "filament_convnext_b_kaggle"
