@@ -19,8 +19,10 @@ def _deep_merge(base: dict, override: dict) -> dict:
 def load_config(path: str) -> dict:
     with open(path) as f:
         raw = yaml.safe_load(f)
-    if "_base_" in raw:
-        base_path = os.path.join(os.path.dirname(path), raw.pop("_base_"))
+    # Accept both ``_base`` and ``_base_`` as the inheritance key.
+    base_key = next((k for k in ("_base", "_base_") if k in raw), None)
+    if base_key:
+        base_path = os.path.join(os.path.dirname(path), raw.pop(base_key))
         base = load_config(base_path)
         return _deep_merge(base, raw)
     return raw

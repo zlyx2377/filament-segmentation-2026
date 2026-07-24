@@ -4,7 +4,7 @@
 # train -> infer -> submit pipeline works on Kaggle GPU before we
 # spend a long training budget).
 # =====================================================================
-_base: base.yaml
+_base_: base.yaml
 
 training:
   epochs: 30            # quick validation run; bump to 60+ for the real attempt
