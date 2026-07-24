@@ -85,14 +85,21 @@ def train_fold(cfg: dict, fold: int, logger):
     train_loader = DataLoader(train_ds, batch_size=bs, shuffle=True, num_workers=2, drop_last=True)
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=2) if val_ds else None
 
-    model = build_model(cfg).to(device)
+    inner = build_model(cfg).to(device)
+    # Use every visible GPU via DataParallel (e.g. T4 x2). EMA must track the
+    # *inner* module so the saved weights have no `module.` prefix and load
+    # cleanly at inference time.
+    n_gpus = torch.cuda.device_count() if device.type == "cuda" else 1
+    model = torch.nn.DataParallel(inner) if n_gpus > 1 else inner
+    logger.info(f"using {n_gpus} GPU(s) for training")
+    ema = EMA(inner, decay=float(cfg["training"].get("ema_decay", 0.9998))) if cfg["training"].get("ema", True) else None
+
     loss_fn = FilamentLoss(cfg)
-    opt = torch.optim.AdamW(model.parameters(), lr=float(cfg["training"]["lr"]),
+    opt = torch.optim.AdamW(inner.parameters(), lr=float(cfg["training"]["lr"]),
                             weight_decay=float(cfg["training"]["weight_decay"]))
     epochs = int(cfg["training"]["epochs"])
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
     scaler = torch.cuda.amp.GradScaler(enabled=cfg["training"].get("amp", True) and device.type == "cuda")
-    ema = EMA(model, decay=float(cfg["training"].get("ema_decay", 0.9998))) if cfg["training"].get("ema", True) else None
 
     out_dir = os.path.join(cfg["experiment"]["out_dir"], "checkpoints")
     os.makedirs(out_dir, exist_ok=True)
@@ -130,7 +137,7 @@ def train_fold(cfg: dict, fold: int, logger):
         save_now = (val_loader is None) or (vd > best_dice)
         if save_now:
             best_dice = max(best_dice, vd)
-            state = ema.state_dict() if ema else model.state_dict()
+            state = ema.state_dict() if ema else inner.state_dict()
             torch.save({"state_dict": state, "epoch": ep, "val_dice": vd, "cfg": cfg},
                        best_path)
             if val_loader is not None:
@@ -138,7 +145,7 @@ def train_fold(cfg: dict, fold: int, logger):
 
         # EMA update after epoch
         if ema:
-            ema.update(model)
+            ema.update(inner)
 
     logger.info(f"fold {fold} done. best val_dice={best_dice:.4f} -> {best_path}")
     return best_path
