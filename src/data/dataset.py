@@ -138,12 +138,18 @@ class FilamentDataset(Dataset):
             fil_crop = out["mask"]
             spi_crop = out["spine"]
 
-        img_t = torch.from_numpy(img_crop).permute(2, 0, 1).float() / 255.0
+        # IMPORTANT: the crops above are *views* into the cached full-res numpy
+        # arrays. torch.from_numpy on a view shares the large underlying storage,
+        # which makes DataLoader's collate fail with
+        # "Trying to resize storage that is not resizable". Force fresh,
+        # contiguous copies so each sample owns its own resizable storage.
+        img_t = torch.from_numpy(np.ascontiguousarray(img_crop)).permute(2, 0, 1).float() / 255.0
         img_t = (img_t - MEAN[:, None, None]) / STD[:, None, None]
-        fil_t = torch.from_numpy(fil_crop).float().unsqueeze(0)
-        spi_t = torch.from_numpy(spi_crop).float().unsqueeze(0) if self.use_spine else torch.zeros_like(fil_t)
-        disk_t = torch.from_numpy(disk_crop.astype(np.uint8)).float().unsqueeze(0)
-        return {"image": img_t, "mask": fil_t, "spine": spi_t, "disk": disk_t}
+        fil_t = torch.from_numpy(np.ascontiguousarray(fil_crop)).float().unsqueeze(0)
+        spi_t = torch.from_numpy(np.ascontiguousarray(spi_crop)).float().unsqueeze(0) if self.use_spine else torch.zeros_like(fil_t)
+        disk_t = torch.from_numpy(np.ascontiguousarray(disk_crop.astype(np.uint8))).float().unsqueeze(0)
+        return {"image": img_t.contiguous(), "mask": fil_t.contiguous(),
+                "spine": spi_t.contiguous(), "disk": disk_t.contiguous()}
 
     def __getitem__(self, idx: int):
         fname = self.files[idx]

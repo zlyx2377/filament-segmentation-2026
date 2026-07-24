@@ -56,9 +56,12 @@ def sanity_ok(path: str) -> bool:
 def main():
     os.makedirs(WORK, exist_ok=True)
     os.chdir(WORK)
-    # 1) Clone the public solution repo (no auth needed).
-    if not os.path.isdir(REPO_DIR):
-        run(["git", "clone", "--depth", "1", REPO_URL], check=True)
+    # 1) Clone the public solution repo (no auth needed). Always re-clone into a
+    #    clean dir so re-runs in the SAME session pick up the latest GitHub code
+    #    instead of silently reusing a stale checkout.
+    if os.path.isdir(REPO_DIR):
+        shutil.rmtree(REPO_DIR)
+    run(["git", "clone", "--depth", "1", REPO_URL], check=True)
     os.chdir(REPO_DIR)
 
     # 2) Install only what Kaggle's base image lacks, NEVER replacing torch.
